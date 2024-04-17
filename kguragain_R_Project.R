@@ -1,5 +1,6 @@
 install.packages("readxl")
 install.packages("deplyr")
+
 library(dplyr)
 library(readxl)
 excel_file <- "C:/Users/kaush/OneDrive/Desktop/Kguragain_R_Project/datsets/US_youtube_trending_data.xlsx"
@@ -40,8 +41,9 @@ data$description <- apply(data["description"], 1, function(x) nchar(as.character
 # Show the modified data frame
 View(data)
 
-
-
+install.packages("openxlsx")
+library(openxlsx)
+write.xlsx(data, "changed_data.xlsx")
 
 
 # Count the number of 1's and 0's in comments_disabled and ratings_disabled columns
@@ -150,7 +152,7 @@ print(combined_data)
 # Subset the combined_data dataframe to include only the first 20,000 rows
 
 # Filter the combined_data dataframe to include only rows where frequency is less than 10,000
-filtered_data <- combined_data[combined_data$frequency < 20000, ]
+filtered_data <- combined_data[combined_data$frequency < 10000, ]
 
 # Create a scatter plot
 #chances for monotonic relationship 
@@ -158,7 +160,7 @@ filtered_data <- combined_data[combined_data$frequency < 20000, ]
 #As one value increase the other value cannot increase 
 scatter_plot <- ggplot(filtered_data, aes(x = frequency, y = average_view_count)) +
   geom_point() +
-  labs(title = "Scatter Plot of Frequency vs. Average View Count (Frequency < 10,000)",
+  labs(title = "Frequency vs. Average View Count (Frequency < 10,000)",
        x = "Frequency",
        y = "Average View Count")
 
@@ -176,5 +178,26 @@ correlation_test <- cor.test(combined_data$frequency, combined_data$average_view
 
 # Print the results
 print(correlation_test)
+
+
+#testing distributuion of data 
+# Create a Q-Q plot
+qq_plot <- qqplot(combined_data$frequency, combined_data$average_view_count,
+                  main = "Q-Q Plot",
+                  xlab = "Frequency",
+                  ylab = "Average View Count")
+
+# Add a diagonal line to the Q-Q plot
+abline(0, 1, col = "red")
+
+# Print the Q-Q plot
+print(qq_plot)
+
+
+
+
+
+
+
 
 
