@@ -334,7 +334,7 @@ print(final_data_with_dummies)
 ####################preparing for regression model, ANOVA TEST##################
 dependent_variable = "view_count"
 independent_variable = c("tagsanimation", "tagschallenge", "tagscomedy", "tagsfortnite", 
-                      "tagsfunny", "tagsgaming", "tagsminecraft", "tagsnews", "tagsvlog")
+                         "tagsfunny", "tagsgaming", "tagsminecraft", "tagsnews", "tagsvlog")
 
 
 #ANOVA test for analysis of variance 
@@ -354,7 +354,7 @@ print(anova_result)
 #Excluding the independed variables with p > 0.05  we remove, animation, gaming, minecraft 
 
 independent_variable_after_ANOVA = c("tagschallenge", "tagscomedy", "tagsfortnite", 
-                         "tagsfunny","tagsnews", "tagsvlog")
+                                     "tagsfunny","tagsnews", "tagsvlog")
 
 # Split the dataset into training and testing sets
 set.seed(123)  # For reproducibility

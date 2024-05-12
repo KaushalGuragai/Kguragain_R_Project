@@ -1,0 +1,272 @@
+---
+title: "M00361014_Kaushal_Guragain_CIS663_Section01_Project_Spring2024"
+author: "Kaushal Guragain"
+date: "2024-05-07"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(openxlsx)
+library(dplyr)
+library(readxl)
+library(ggplot2)
+library(tidyr)
+library(caret)
+
+```
+
+##Introduction
+
+YouTube, with its vast user base and extensive reach, stands as a cornerstone of the social media landscape. Boasting over 2.49 billion monthly active users and more than 80 million paid subscribers, it presents an unparalleled platform for content creators and businesses alike to showcase their offerings to a global audience (Backlinko.com, [insert year]). However, amidst this abundance of opportunity lies a fundamental challenge: how to garner the attention and engagement necessary to drive views, interactions, and ultimately, revenue.
+
+At the heart of this challenge lies the question: what factors influence video view counts on YouTube? In pursuit of an answer, this project delves into the rich tapestry of YouTube trending data, seeking to unravel the impact of tags – those concise descriptors appended to videos – on view counts. By analyzing a dataset encompassing trending YouTube videos, this study endeavors to illuminate the relationship between the content descriptors encapsulated in tags and the resulting viewer engagement, as measured by view counts.
+
+##Literature review
+
+I read the paper Elango, Dinesh, Social Media Video Creators Monetization and Business on YouTube by Dinesh Elango. In the paper he talks about how advertisers will select the video for ads marketing and how the earning is distributed to the video creators. He also talks about possible conversation rates of views into revenue. Another interesting paper I came across was, Modelling and statistical analysis of YouTube’s educational videos: A Channel’s owners’ perspective. Some on the things that the paper talked about was, using moving average to analyze the trend of view per day for the channel, the correlation between video uploading activity, the age of channel and its popularity, classifying videos based on metrices like number of comments, subscribers, shares and likes. Zipf distribution and pareto law, devices used to watch videos, and more. All of the analysis that have been done with above matrices for content-based analysis and finding user behavioral patters in response to the videos they have watched or the playlist they have viewed. After reading the paper the things that are known about the problem are: YouTube’s massive user base, importance of views for revenue, challenges in generating revenue, lack of concrete solution for predicting the views on the video. Some not known things are, an accurate statistical tool for predicting views, Effective strategies for video making, strategic sponsorship of channels based on category and location.A very interesting paper i came across was of "Hashtag recommendation for enhancing the popularity of social media posts". Their proposed method utilizes the trending nature of hashtags by using post keywords along with the popularity of users and posts. They were able to devise a novel evaluation algorithm that is more robust and reliable than what is in the market for such analysis.  
+
+##Research Question 
+
+Does the frequency of tags or tags in general affect the overall viewcount of youtube trending videos.
+
+The null hypothesis was that the tags did not affect the viewcount for the trending videos. However, we were able to devise that tags had effected the viewcount of videos by 16% according to the regression model. The initial model devised and presented gave a result of 18%, but removing weights and doing the regression generated the model r-squared and adjusted r-squared to "0.16", and "0.15".
+
+```{r, echo = FALSE}
+excel_file <- "C:/Users/kaush/OneDrive/Desktop/Kguragain_R_Project/datsets/US_youtube_trending_data.xlsx"
+data <- read_xlsx(excel_file, sheet = 1)
+# Show the modified data frame
+tags_split <- strsplit(data$tags, "[|#]")
+
+# Step 2: Unlist the resulting list to get a vector of individual strings
+tags_unlisted <- unlist(tags_split)
+
+# Step 3: Remove unwanted tags
+tags_unlisted <- tags_unlisted[grepl("^[a-zA-Z0-9-]+$", tags_unlisted)]
+
+# Step 4: Count the frequency of each string
+tags_counts <- table(tags_unlisted)
+
+# Step 5: Sort the tag frequencies in descending order
+tags_counts_sorted <- sort(tags_counts, decreasing = TRUE)
+
+# Convert the tags_counts_sorted object to a data frame
+tags_frequency <- data.frame(
+  tags = names(tags_counts_sorted),
+  frequency = as.numeric(tags_counts_sorted)
+)
+#top 10 tags for analysis
+top_tags <- head(tags_frequency$tags, 10)
+top_tags_freq <- head(tags_frequency$frequency, 10)
+split_tags <- separate_rows(data, tags, sep = "\\|")
+
+# Step 2: Calculate the Average View Count
+transformed_data <- split_tags %>%
+  group_by(tags) %>%
+  summarise(average_view_count = mean(view_count))
+unique_average_data <- unique(transformed_data)
+# Print the transformed data
+ranked_data <- unique_average_data %>%
+  arrange(desc(average_view_count))
+combined_data <- merge(ranked_data, tags_frequency, by = "tags", all = TRUE)
+
+# Remove rows with NA values
+combined_data <- na.omit(combined_data)
+top_10_combined <- combined_data[order(combined_data$frequency, decreasing = TRUE), ]
+# Select the top 10 rows
+top_10_combined <- head(top_10_combined, 10)
+filtered_data <- combined_data[combined_data$frequency < 10000, ]
+
+selected_data <- data[, c("video_id", "title", "categoryId", "view_count", "tags")]
+
+desired_sample_size <- 100000
+
+# Sample indices randomly
+sampled_indices <- sample(1:nrow(selected_data), size = desired_sample_size, replace = FALSE)
+
+# Subset the selected data using the sampled indices
+sampled_data <- selected_data[sampled_indices, ]
+rows_with_none_tags <- sampled_data[sampled_data$tags == "[None]", ]
+
+# Create a separate dataframe with rows ### WITH NO ###tags
+empty_tags <- sampled_data[sampled_data$tags == "[None]", ]
+
+# Create a separate dataframe with rows ###WITH ###tags
+with_tags <- sampled_data[sampled_data$tags != "[None]", ]
+
+#check if na exists in empty_tags
+empty_tags %>% na.omit()
+
+#calculated median  of the view_count column
+median_view_count_empty_tags <- median(empty_tags$view_count)
+
+split_tags <- separate_rows(with_tags, tags, sep = "\\|")
+
+# Calculate total frequency of all tags
+total_frequency <- sum(top_10_combined$frequency)
+
+# Calculate weight for each tag
+top_10_combined$weight <- top_10_combined$frequency / total_frequency
+merged_data <- inner_join(split_tags, top_10_combined, by = "tags")
+
+# Select relevant columns and rename the weight column
+filtered_data <- merged_data %>%
+  select(video_id, title, categoryId, view_count, tags, weight = weight)
+final_data_prepared <- filtered_data %>%
+  group_by(video_id) %>%
+  filter(weight == max(weight)) %>%
+  ungroup()
+
+# Filter out rows with NA values in any column
+final_data_filtered <- final_data_prepared %>%
+  na.omit()
+
+# Print the final dataset
+unique_tags_with_weights <- final_data_filtered
+
+unique_tags_with_weights <- unique_tags_with_weights %>%
+  arrange(weight)
+tag_view_count <- final_data_filtered %>%
+  group_by(tags,weight) %>%
+  summarise(average_view_count = mean(view_count)) 
+tag_with_lowest_weight <- unique_tags_with_weights[which.min(unique_tags_with_weights$weight), "tags"]
+
+# Convert 'tags' column to character type
+final_data_filtered$tags <- as.character(final_data_filtered$tags)
+
+# Create dummy variables for 'tags' column
+dummy_data <- predict(dummyVars(~ tags, data = final_data_filtered), 
+                      newdata = final_data_filtered)
+
+# Remove the dummy variable for the tag with the lowest weight
+dummy_data <- dummy_data[, !(grepl(tag_with_lowest_weight, colnames(dummy_data)))]
+
+# Combine the dummy variables with the original dataset
+final_data_with_dummies <- cbind(final_data_filtered, dummy_data)
+independent_variable_after_ANOVA = c("tagschallenge", "tagscomedy", "tagsfortnite", 
+                                     "tagsfunny","tagsnews", "tagsvlog")
+
+# Split the dataset into training and testing sets
+set.seed(123)  # For reproducibility
+train_index <- sample(1:nrow(final_data_with_dummies), 0.7 * nrow(final_data_with_dummies))
+train_data <- final_data_with_dummies[train_index, ]
+test_data <- final_data_with_dummies[-train_index, ]
+
+# Build Regression Model with Custom Intercept
+model_custom_intercept <- lm(view_count ~ . - 1, data = train_data[, c("view_count", independent_variable_after_ANOVA)])
+
+# Set the intercept to the median view count for videos with no tags
+model_custom_intercept$coefficients[1] <- median_view_count_empty_tags
+# Step 4: Evaluate Model
+# Predict view count using the testing set
+predictions_custom_intercept <- predict(model_custom_intercept, newdata = test_data)
+
+# Step 5: Interpret Results
+# Print coefficients of the regression model
+summary(model_custom_intercept)
+
+```
+##Theory
+
+My initial theory from literature review is that tags do affect the view count in some form. While predicting the view count of a particular YouTube video doesn't have a simple solution. But, tags will in fact affect the video to some extent. Since, the data is for data of trending YouTube videos, even a small prediction as 16% is significant because we are found out what tags out of trending YouTube videos affected their view count. There are millions of videos which do not generate even a single view. Tags, which was able to predict as much as it could is definitely significant.
+
+
+##Data
+
+The data I require for my research project needed to encompass a high volume of data with numerous metrics involved, as discussed previously. These metrics included variables such as 'tags' for comparing different categoris of data, 'channel title,' 'channel category,' 'view count,' 'likes,' and others. I have identified relevant data sources for my project on Kaggle. One such dataset is available at https://www.kaggle.com/datasets/rsrishav/youtube-trending-video-dataset/ , which provides column variables like 'published year' for historical data, along with various other metrics.
+
+The data I utilized was focused on tags and view count. Specially the top 10 tags out of all the data sets.The data was in excel (xlsx) format. The data was clean in various aspect and divided based on top 10 tags before we used a regreeion model to analyze it. 
+
+```{r, echo = FALSE}
+ggplot(data = data.frame(Tag = top_tags, Freq = top_tags_freq), aes(x = reorder(Tag, -Freq), y = Freq)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Top Tags by Frequency", x = "Tags", y = "Frequency") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+##Data Analysis and Results
+
+I analyzed my data in many ways. I used a QQ plot to see the distribution.It showed that the view count increases as the frequency of tags increases as well.
+```{r, echo = FALSE}
+qq_plot <- qqplot(combined_data$frequency, combined_data$average_view_count,
+                  main = "Q-Q Plot",
+                  xlab = "Frequency",
+                  ylab = "Average View Count")
+
+# Add a diagonal line to the Q-Q plot
+abline(0, 1, col = "red")
+```
+I also used the ANOVA test and Regression model to see the variance in the data and filtering independed variables for regression model. 
+```{r, echo = FALSE}
+dependent_variable = "view_count"
+independent_variable = c("tagsanimation", "tagschallenge", "tagscomedy", "tagsfortnite", 
+                         "tagsfunny", "tagsgaming", "tagsminecraft", "tagsnews", "tagsvlog")
+
+
+#ANOVA test for analysis of variance 
+
+# Fit Multiple Linear Regression Model
+model <- lm(view_count ~ ., data = final_data_with_dummies[, c(dependent_variable, independent_variable)])
+
+# Perform ANOVA Test
+anova_result <- anova(model)
+print(anova_result)
+```
+After looking at the results, i removed the independent variables with low F-value and high Pr(>0.5). Then the regression was done and the final result was as follows: 
+```{r, echo = FALSE}
+
+independent_variable_after_ANOVA = c("tagschallenge", "tagscomedy", "tagsfortnite", 
+                                     "tagsfunny","tagsnews", "tagsvlog")
+
+# Split the dataset into training and testing sets
+set.seed(123)  # For reproducibility
+train_index <- sample(1:nrow(final_data_with_dummies), 0.7 * nrow(final_data_with_dummies))
+train_data <- final_data_with_dummies[train_index, ]
+test_data <- final_data_with_dummies[-train_index, ]
+
+# Build Regression Model with Custom Intercept
+model_custom_intercept <- lm(view_count ~ . - 1, data = train_data[, c("view_count", independent_variable_after_ANOVA)])
+
+# Set the intercept to the median view count for videos with no tags
+model_custom_intercept$coefficients[1] <- median_view_count_empty_tags
+# Step 4: Evaluate Model
+# Predict view count using the testing set
+predictions_custom_intercept <- predict(model_custom_intercept, newdata = test_data)
+
+# Step 5: Interpret Results
+# Print coefficients of the regression model
+summary(model_custom_intercept)
+```
+We can see that, the pr value is small for all the independent variables and good t values. The multiple R-squared and adjusted R-squared was 16% and 15% respectively. I also created a bar plot which will produce blue bars for value > 0 showing some degree of significance for prediction for view count by tags and red for not showing any. I got the output as blue bars which mean that the independed variables were significant in predicting the average view count. 
+
+```{r,echo = FALSE}
+#creating a bar chart 
+# Extract coefficients and standard errors
+coefficients <- coef(model_custom_intercept)
+std_errors <- summary(model_custom_intercept)$coef[, "Std. Error"]
+
+# Calculate upper and lower bounds of confidence intervals
+upper_bound <- coefficients + 1.96 * std_errors
+lower_bound <- coefficients - 1.96 * std_errors
+
+# Create a bar plot
+barplot(coefficients, ylim = range(c(lower_bound, upper_bound)), 
+        names.arg = names(coefficients), 
+        xlab = "Independent Variables", ylab = "Coefficients", 
+        main = "Coefficient Plot with 95% Confidence Intervals", 
+        col = ifelse((lower_bound > 0 & upper_bound > 0) | (lower_bound < 0 & upper_bound < 0), "blue", "red"))
+
+# Add error bars
+arrows(1:length(coefficients), lower_bound, 1:length(coefficients), upper_bound, 
+       angle = 90, code = 3, length = 0.05, col = "black", lwd = 1.5)
+```
+
+##Implications
+
+The results imply that, while tags are not the best way to estimate how the view count fluctuates, but it is still a significant factor. While 16% isn't much, the percent is for the data of trending videos. So, even being able to predict 16% on such data holds some level of significane. 
+
+##Conclusion
+
+The insights gained from this project hold significant implications. Equipped with a statistical understanding of the tags that drive higher view counts, creators, businesses, and marketers can optimize their video content strategy. They can discern the categories, types, and lengths of videos most likely to resonate with their target audience. This enables them to tailor their content to maximize engagement and achieve desired outcomes, whether it's increased brand exposure, product promotion, or revenue generation.
+
+In essence, this project aims to empower YouTube creators and businesses with actionable insights. It guides them towards creating customer-oriented videos that captivate audiences and drive meaningful outcomes. By embracing data-driven decision-making, stakeholders can unlock the full potential of YouTube as a marketing platform. This fosters greater connection, engagement, and success in the dynamic realm of online video content.
